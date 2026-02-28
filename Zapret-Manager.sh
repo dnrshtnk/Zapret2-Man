@@ -97,7 +97,7 @@ echo -e "${CYAN}Скачиваем архив ${NC}$FILE_NAME"; wget -q -U "Mozi
 unzip -o "$FILE_NAME" >/dev/null; if [ "$PKG_IS_APK" -eq 1 ]; then PKG_PATH="$TMP_SF/apk"; for PKG in "$PKG_PATH"/zapret2*; do [ -f "$PKG" ] || continue; echo "$PKG" | grep -q "luci" && continue; install_pkg "$(basename "$PKG")" "$PKG" || return; done
 for PKG in "$PKG_PATH"/luci*; do [ -f "$PKG" ] || continue; install_pkg "$(basename "$PKG")" "$PKG" || return; done; else PKG_PATH="$TMP_SF"; for PKG in "$PKG_PATH"/zapret2_*.ipk; do [ -f "$PKG" ] || continue; install_pkg "$(basename "$PKG")" "$PKG" || return; done
 for PKG in "$PKG_PATH"/luci-app-zapret2_*.ipk; do [ -f "$PKG" ] || continue; install_pkg "$(basename "$PKG")" "$PKG" || return; done; fi; echo -e "${CYAN}Удаляем временные файлы${NC}"; cd /
-rm -rf "$TMP_SF" /tmp/*.ipk /tmp/*.zip /tmp/*zapret* 2>/dev/null; echo -e "Zapret2 ${GREEN}установлен!${NC}\n"; [ "$NO_PAUSE" != "1" ] && PAUSE; }
+rm -rf "$TMP_SF" /tmp/*.ipk /tmp/*.zip /tmp/*zapret* 2>/dev/null; echo -e "Zapret2 ${GREEN}установлен!${NC}\n"; [ "$NO_PAUSE" != "1" ] && PAUSE; return 0; }
 # ==========================================
 # Меню настройки Discord
 # ==========================================
@@ -560,13 +560,27 @@ if [ ! -f /etc/init.d/zapret ]; then Z2_TEXT="Установить"; Z2_FUNC="in
 elif [ "$INST_VER" = "$ZAPRET2_VERSION" ]; then Z2_TEXT="Удалить"; Z2_FUNC="uninstall_zapret"
 else Z2_TEXT="Обновить"; Z2_FUNC="install_Zapret2"; fi
 # Цвета для версий
-[ "$INST_VER" = "$ZAPRET_VERSION" ] && INST_COLOR1=$GREEN || INST_COLOR1=$RED
-[ "$INST_VER" = "$ZAPRET2_VERSION" ] && INST_COLOR2=$GREEN || INST_COLOR2=$RED
+if [ "$INST_VER" = "$ZAPRET_VERSION" ]; then INST_COLOR1=$GREEN; else INST_COLOR1=$RED; fi
+if [ "$INST_VER" = "$ZAPRET2_VERSION" ]; then INST_COLOR2=$GREEN; else INST_COLOR2=$RED; fi
 echo -e "${CYAN}1) ${GREEN}$Z1_TEXT${NC} Zapret v${ZAPRET_VERSION} (установлено: ${INST_COLOR1}$INST_VER${NC})\n${CYAN}2) ${GREEN}$Z2_TEXT${NC} Zapret2 v${ZAPRET2_VERSION} (установлено: ${INST_COLOR2}$INST_VER${NC})\n${CYAN}Enter) ${GREEN}Выход в главное меню${NC}\n\n${YELLOW}Выберите пункт:${NC} " && read choice
 case "$choice" in 1) $Z1_FUNC;; 2) $Z2_FUNC;; *) return;; esac; done; }
 # ==========================================
-show_menu() { get_versions; get_doh_status; show_current_strategy; RKN_Check; mkdir -p "$TMP_SF"; CURR=$(curr_MIR); clear; echo -e "╔════════════════════════════════════╗\n║     ${BLUE}Zapret on remittor Manager${NC}     ║\n╚════════════════════════════════════╝\n                     ${DGRAY}by StressOzz v$ZAPRET_MANAGER_VERSION${NC}"
-if [ ! -f /etc/init.d/zapret ]; then Z_ACTION_TEXT="Установить"; Z_ACTION_FUNC="install_Zapret"; elif [ "$INSTALLED_VER" = "$ZAPRET_VERSION" ]; then Z_ACTION_TEXT="Удалить" Z_ACTION_FUNC="uninstall_zapret"; else Z_ACTION_TEXT="Обновить"; Z_ACTION_FUNC="install_Zapret"; fi
+show_menu() { get_doh_status; show_current_strategy; RKN_Check; mkdir -p "$TMP_SF"; CURR=$(curr_MIR); clear; echo -e "╔════════════════════════════════════╗\n║     ${BLUE}Zapret on remittor Manager${NC}     ║\n╚════════════════════════════════════╝\n                     ${DGRAY}by StressOzz v$ZAPRET_MANAGER_VERSION${NC}"
+# Определяем установленную версию и статус
+LOCAL_ARCH=$(awk -F\' '/DISTRIB_ARCH/ {print $2}' /etc/openwrt_release); [ -z "$LOCAL_ARCH" ] && LOCAL_ARCH=$(opkg print-architecture | grep -v "noarch" | sort -k3 -n | tail -n1 | awk '{print $2}')
+if [ "$PKG_IS_APK" -eq 1 ]; then INST_VER=$(apk info -v | grep '^zapret-' | head -n1 | cut -d'-' -f2 | sed 's/-r[0-9]\+$//')
+else INST_VER=$(opkg list-installed zapret 2>/dev/null | awk '{sub(/-r[0-9]+$/, "", $3); print $3}'); fi
+[ -z "$INST_VER" ] && INST_VER="не найдена"
+if [ "$INST_VER" = "$ZAPRET_VERSION" ] || [ "$INST_VER" = "$ZAPRET2_VERSION" ]; then INST_COLOR=$GREEN; else INST_COLOR=$RED; fi
+INSTALLED_DISPLAY="$INST_VER"
+# Статус Zapret
+NFQ_RUN=$(pgrep -f nfqws 2>/dev/null | wc -l); NFQ_RUN=${NFQ_RUN:-0}; NFQ_ALL=$(/etc/init.d/zapret info 2>/dev/null | grep -o 'instance[0-9]\+' | wc -l); NFQ_ALL=${NFQ_ALL:-0}; NFQ_STAT=""
+if [ "$NFQ_ALL" -gt 0 ]; then [ "$NFQ_RUN" -eq "$NFQ_ALL" ] && NFQ_CLR=$GREEN || NFQ_CLR=$RED; NFQ_STAT="${NFQ_CLR}[${NFQ_RUN}/${NFQ_ALL}]${NC}"; fi
+if [ -f /etc/init.d/zapret ]; then /etc/init.d/zapret status >/dev/null 2>&1 && ZAPRET_STATUS="${GREEN}запущен $NFQ_STAT${NC}" || ZAPRET_STATUS="${RED}остановлен${NC}"; else ZAPRET_STATUS=""; fi
+# Определяем действие для пункта 1
+if [ ! -f /etc/init.d/zapret ]; then Z_ACTION_TEXT="Установить"; Z_ACTION_FUNC="install_Zapret"
+elif [ "$INST_VER" = "$ZAPRET_VERSION" ] || [ "$INST_VER" = "$ZAPRET2_VERSION" ]; then Z_ACTION_TEXT="Удалить"; Z_ACTION_FUNC="uninstall_zapret"
+else Z_ACTION_TEXT="Обновить"; Z_ACTION_FUNC="install_Zapret"; fi
 for pkg in byedpi youtubeUnblock; do if [ "$PKG_IS_APK" -eq 1 ]; then apk info -e "$pkg" >/dev/null 2>&1 && echo -e "\n${RED}Найден установленный ${NC}$pkg${RED}!${NC}\nZapret${RED} может работать некорректно с ${NC}$pkg${RED}!${NC}"
 else opkg list-installed | grep -q "^$pkg" && echo -e "\n${RED}Найден установленный ${NC}$pkg${RED}!${NC}\nZapret${RED} может работать некорректно с ${NC}$pkg${RED}!${NC}"; fi; done
 if uci get firewall.@defaults[0].flow_offloading 2>/dev/null | grep -q '^1$' || uci get firewall.@defaults[0].flow_offloading_hw 2>/dev/null | grep -q '^1$'; then if ! grep -q 'meta l4proto { tcp, udp } ct original packets ge 30 flow offload @ft;' /usr/share/firewall4/templates/ruleset.uc
