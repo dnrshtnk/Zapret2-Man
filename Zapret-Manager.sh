@@ -1,10 +1,52 @@
+#!/bin/sh
 # ==========================================
-# Переменные версий
+# Zapret on remittor Manager by StressOzz
 # ==========================================
 ZAPRET_MANAGER_VERSION="9.1"
 ZAPRET_VERSION="72.20260226"
 ZAPRET2_VERSION="0.9.20260226"
 STR_VERSION_AUTOINSTALL="v1"
+TEST_HOST="https://rr1---sn-gvnuxaxjvh-jx3z.googlevideo.com"
+LAN_IP=$(uci get network.lan.ipaddr 2>/dev/null | cut -d/ -f1)
+GREEN="\033[1;32m"
+RED="\033[1;31m"
+CYAN="\033[1;36m"
+YELLOW="\033[1;33m"
+MAGENTA="\033[1;35m"
+BLUE="\033[0;34m"
+NC="\033[0m"
+DGRAY="\033[38;5;244m"
+CONF="/etc/config/zapret"
+CUSTOM_DIR="/opt/zapret/init.d/openwrt/custom.d/"
+HOSTLIST_FILE="/opt/zapret/ipset/zapret-hosts-user.txt"
+STR_URL="https://raw.githubusercontent.com/StressOzz/Zapret-Manager/refs/heads/main/ListStrYou"
+TMP_SF="/tmp/zapret_temp"
+HOSTS_FILE="/etc/hosts"
+TMP_LIST="$TMP_SF/zapret_yt_list.txt"
+SAVED_STR="$TMP_SF/StrYou.txt"
+HOSTS_USER="$TMP_SF/hosts-user.txt"
+OUT_DPI="$TMP_SF/dpi_urls.txt"
+OUT="$TMP_SF/str_flow.txt"
+ZIP="$TMP_SF/repo.zip"
+BACKUP_FILE="/opt/zapret/tmp/hosts_temp.txt"
+STR_FILE="$TMP_SF/str_test.txt"
+TEMP_FILE="$TMP_SF/str_temp.txt"
+RESULTS="/opt/zapret/tmp/zapret_bench.txt"
+BACK="$TMP_SF/zapret_back.txt"
+TMP_RES="$TMP_SF/zapret_results_all.$$"
+FINAL_STR="$TMP_SF/StrFINAL.txt"
+NEW_STR="$TMP_SF/StrNEW.txt"
+OLD_STR="$TMP_SF/StrOLD.txt"
+RES1="/opt/zapret/tmp/results_flowseal.txt"
+RES2="/opt/zapret/tmp/results_versions.txt"
+RES3="/opt/zapret/tmp/results_all.txt"
+Fin_IP_Dis="104\.25\.158\.178 finland[0-9]\{5\}\.discord\.media"
+PARALLEL=8
+RAW="https://raw.githubusercontent.com/hyperion-cs/dpi-checkers/refs/heads/main/ru/tcp-16-20/suite.json"
+EXCLUDE_FILE="/opt/zapret/ipset/zapret-hosts-user-exclude.txt"
+fileDoH="/etc/config/https-dns-proxy"
+RKN_URL="https://raw.githubusercontent.com/IndeecFOX/zapret4rocket/refs/heads/master/extra_strats/TCP/RKN/List.txt"
+EXCLUDE_URL="https://raw.githubusercontent.com/StressOzz/Zapret-Manager/refs/heads/main/zapret-hosts-user-exclude.txt"
 
 # ==========================================
 # Получение версии
@@ -52,11 +94,11 @@ get_versions() {
 }
 
 # ==========================================
-# Установка Zapret
+# Установка пакета
 # ==========================================
 install_pkg() {
-    local display_name="$1"
-    local pkg_file="$2"
+    display_name="$1"
+    pkg_file="$2"
     if [ "$PKG_IS_APK" -eq 1 ]; then
         echo -e "${CYAN}Устанавливаем ${NC}$display_name"
         apk add --allow-untrusted "$pkg_file" >/dev/null 2>&1 || {
@@ -74,21 +116,22 @@ install_pkg() {
     fi
 }
 
+# ==========================================
+# Установка Zapret
+# ==========================================
 install_Zapret() {
-    local TYPE=${1:-1}
-    local NO_PAUSE=${2:-0}
+    TYPE=${1:-1}
+    NO_PAUSE=${2:-0}
     mkdir -p "$TMP_SF"
     get_versions
     
     if [ "$TYPE" = "2" ]; then
         VER_USE="$ZAPRET2_VERSION"
         PKG_BASE="zapret2"
-        URL_BASE="zapret2_v"
         URL_USE="$LATEST_URL2"
     else
         VER_USE="$ZAPRET_VERSION"
         PKG_BASE="zapret"
-        URL_BASE="zapret_v"
         URL_USE="$LATEST_URL"
     fi
     
@@ -192,10 +235,10 @@ install_Zapret() {
 }
 
 # ==========================================
-# Удаление Zapret
+# Удаление пакета
 # ==========================================
 pkg_remove() {
-    local pkg_name="$1"
+    pkg_name="$1"
     if [ "$PKG_IS_APK" -eq 1 ]; then
         apk del "$pkg_name" >/dev/null 2>&1 || true
     else
@@ -203,9 +246,12 @@ pkg_remove() {
     fi
 }
 
+# ==========================================
+# Удаление Zapret
+# ==========================================
 uninstall_zapret() {
-    local TYPE=${1:-1}
-    local NO_PAUSE=$2
+    TYPE=${1:-1}
+    NO_PAUSE=$2
     [ "$NO_PAUSE" != "1" ] && echo
     echo -e "${MAGENTA}Удаляем ZAPRET ${TYPE}${NC}\n${CYAN}Останавливаем ${NC}zapret"
     /etc/init.d/zapret stop >/dev/null 2>&1
@@ -260,7 +306,8 @@ install_menu() {
         echo -e "${CYAN}1) ${ACT1} Zapret 1 (v${ZAPRET_VERSION})"
         echo -e "${CYAN}2) ${ACT2} Zapret 2 (v${ZAPRET2_VERSION})"
         echo -e "${CYAN}Enter) ${GREEN}Выход в главное меню${NC}"
-        echo -ne "${YELLOW}Выберите пункт:${NC} " && read choiceIM
+        echo -ne "${YELLOW}Выберите пункт:${NC} "
+        read choiceIM
         
         case "$choiceIM" in
             1)
@@ -335,62 +382,10 @@ show_menu() {
         Z_ACTION_TEXT="Обновить"
     fi
     
-    for pkg in byedpi youtubeUnblock; do
-        if [ "$PKG_IS_APK" -eq 1 ]; then
-            apk info -e "$pkg" >/dev/null 2>&1 && echo -e "\n${RED}Найден установленный ${NC}$pkg${RED}!${NC}\nZapret${RED} может работать некорректно с ${NC}$pkg${RED}!${NC}"
-        else
-            opkg list-installed | grep -q "^$pkg" && echo -e "\n${RED}Найден установленный ${NC}$pkg${RED}!${NC}\nZapret${RED} может работать некорректно с ${NC}$pkg${RED}!${NC}"
-        fi
-    done
-    
-    if uci get firewall.@defaults[0].flow_offloading 2>/dev/null | grep -q '^1$' || uci get firewall.@defaults[0].flow_offloading_hw 2>/dev/null | grep -q '^1$'; then
-        if ! grep -q 'meta l4proto { tcp, udp } ct original packets ge 30 flow offload @ft;' /usr/share/firewall4/templates/ruleset.uc; then
-            echo -e "\n${RED}Включён ${NC}Flow Offloading${RED}!${NC}\n${NC}Zapret${RED} некорректно работает с включённым ${NC}Flow Offloading${RED}!\nПримените ${NC}FIX${RED} в системном меню!${NC}"
-        fi
-    fi
-    
     pgrep -f "/opt/zapret" >/dev/null 2>&1 && str_stp_zpr="Остановить" || str_stp_zpr="Запустить"
     
     echo -e "\n${YELLOW}Zapret 1: ${INST_COLOR}$INSTALLED_DISPLAY${NC} | ${YELLOW}Zapret 2: ${INST_COLOR2}$INSTALLED_DISPLAY2${NC}"
     [ -n "$ZAPRET_STATUS" ] && echo -e "${YELLOW}Статус Zapret:${NC}           $ZAPRET_STATUS"
-    
-    if hosts_enabled; then
-        echo -e "${YELLOW}Домены в hosts:          ${GREEN}добавлены${NC}"
-    fi
-    
-    [ -f "$DATE_FILE" ] && echo -e "${YELLOW}Резервная копия:${NC}         ${GREEN}сохранена"
-    show_script_50 && [ -n "$name" ] && echo -e "${YELLOW}Установлен скрипт:${NC}       $name"
-    grep -q "$Fin_IP_Dis" /etc/hosts && echo -e "${YELLOW}Финские IP для Discord:  ${GREEN}включены${NC}"
-    
-    [ -f "$CONF" ] && grep -q "option NFQWS_PORTS_UDP.*88,1024-2407,2409-4499,4501-19293,19345-49999,50101-65535" "$CONF" && grep -q -- "--filter-udp=88,1024-2407,2409-4499,4501-19293,19345-49999,50101-65535" "$CONF" && echo -e "${YELLOW}Стратегия для игр:${NC}       ${GREEN}включена${NC}"
-    
-    if [ -n "$DOH_STATUS" ]; then
-        if [ "$PKG_IS_APK" -eq 1 ]; then
-            apk info -e https-dns-proxy >/dev/null 2>&1 && echo -e "${YELLOW}DNS over HTTPS:${NC}          $DOH_STATUS"
-        else
-            opkg list-installed | grep -q '^https-dns-proxy ' && echo -e "${YELLOW}DNS over HTTPS:${NC}          $DOH_STATUS"
-        fi
-    fi
-    
-    if web_is_enabled; then
-        echo -e "${YELLOW}Доступ из браузера:${NC}      $LAN_IP:7681"
-    fi
-    
-    quic_is_blocked && echo -e "${YELLOW}Блокировка QUIC:${NC}         ${GREEN}включена${NC}"
-    grep -q 'ct original packets ge 30 flow offload @ft;' /usr/share/firewall4/templates/ruleset.uc && echo -e "${YELLOW}FIX для Flow Offloading:${NC} ${GREEN}включён${NC}"
-    [ "$CURR" != "default / OpenWrt" ] && echo -e "${YELLOW}Используется зеркало:${NC}    $CURR"
-    
-    [ -f "$CONF" ] && line=$(grep -m1 '^#general' "$CONF") && [ -n "$line" ] && echo -e "${YELLOW}Используется стратегия:${NC}  ${CYAN}${line#?}${NC}"
-    
-    if [ -f "$CONF" ]; then
-        current="$ver$( [ -n "$ver" ] && [ -n "$yv_ver" ] && echo " / " )$yv_ver"
-        DV=$(grep -o -E '^#[[:space:]]*Dv[0-9][0-9]*' "$CONF" | sed 's/^#[[:space:]]*/\/ /' | head -n1)
-        if [ -n "$current" ]; then
-            echo -e "${YELLOW}Используется стратегия:${NC}  ${CYAN}$current${DV:+ $DV}${RKN_STATUS:+ $RKN_STATUS}${NC}"
-        elif [ -n "$RKN_STATUS" ]; then
-            echo -e "${YELLOW}Используется стратегия:${NC}${CYAN}  РКН${DV:+ $DV}${NC}"
-        fi
-    fi
     
     echo -e "\n${CYAN}1) ${GREEN}Управление установкой Zapret${NC}"
     echo -e "${CYAN}2) ${GREEN}$str_stp_zpr ${NC}Zapret"
@@ -401,20 +396,10 @@ show_menu() {
     echo -e "${CYAN}7) ${GREEN}Меню управления доменами в ${NC}hosts"
     echo -e "${CYAN}8) ${GREEN}Удалить ${NC}→${GREEN} установить ${NC}→${GREEN} настроить${NC} Zapret"
     echo -e "${CYAN}0) ${GREEN}Системное меню${NC}"
-    echo -ne "${CYAN}Enter) ${GREEN}Выход${NC}\n${YELLOW}Выберите пункт:${NC} " && read choice
+    echo -ne "${CYAN}Enter) ${GREEN}Выход${NC}\n${YELLOW}Выберите пункт:${NC} "
+    read choice
     
     case "$choice" in
-        888)
-            echo
-            uninstall_zapret 1 "1"
-            install_Zapret 1 "1"
-            curl -fsSL https://raw.githubusercontent.com/StressOzz/Test/refs/heads/main/zapret -o "$CONF"
-            hosts_add "$ALL_BLOCKS"
-            rm -f "$EXCLUDE_FILE"
-            wget -q -U "Mozilla/5.0" -O "$EXCLUDE_FILE" "$EXCLUDE_URL"
-            ZAPRET_RESTART
-            PAUSE
-            ;;
         1) install_menu ;;
         2) pgrep -f /opt/zapret >/dev/null 2>&1 && stop_zapret || start_zapret ;;
         3) menu_str ;;
