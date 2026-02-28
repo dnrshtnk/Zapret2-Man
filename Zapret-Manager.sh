@@ -68,8 +68,8 @@ else ZAPRET_STATUS=""; fi; [ "$INSTALLED_VER" = "$ZAPRET_VERSION" ] && INST_COLO
 # Получение версии Zapret2
 # ==========================================
 get_versions2() { LOCAL_ARCH=$(awk -F\' '/DISTRIB_ARCH/ {print $2}' /etc/openwrt_release); [ -z "$LOCAL_ARCH" ] && LOCAL_ARCH=$(opkg print-architecture | grep -v "noarch" | sort -k3 -n | tail -n1 | awk '{print $2}'); USED_ARCH="$LOCAL_ARCH"
-LATEST_URL2="https://github.com/remittor/zapret-openwrt/releases/download/v${ZAPRET2_VERSION}/zapret2_v${ZAPRET2_VERSION}_${LOCAL_ARCH}.zip"; if [ "$PKG_IS_APK" -eq 1 ]; then INSTALLED_VER2=$(apk info -v | grep '^zapret2-' | head -n1 | cut -d'-' -f2 | sed 's/-r[0-9]\+$//')
-[ -z "$INSTALLED_VER2" ] && INSTALLED_VER2="не найдена"; else INSTALLED_VER2=$(opkg list-installed zapret2 2>/dev/null | awk '{sub(/-r[0-9]+$/, "", $3); print $3}'); [ -z "$INSTALLED_VER2" ] && INSTALLED_VER2="не найдена"; fi
+LATEST_URL2="https://github.com/remittor/zapret-openwrt/releases/download/v${ZAPRET2_VERSION}/zapret2_v${ZAPRET2_VERSION}_${LOCAL_ARCH}.zip"; if [ "$PKG_IS_APK" -eq 1 ]; then INSTALLED_VER2=$(apk info -v | grep '^zapret-' | head -n1 | cut -d'-' -f2 | sed 's/-r[0-9]\+$//')
+[ -z "$INSTALLED_VER2" ] && INSTALLED_VER2="не найдена"; else INSTALLED_VER2=$(opkg list-installed zapret 2>/dev/null | awk '{sub(/-r[0-9]+$/, "", $3); print $3}'); [ -z "$INSTALLED_VER2" ] && INSTALLED_VER2="не найдена"; fi
 NFQ_RUN=$(pgrep -f nfqws 2>/dev/null | wc -l); NFQ_RUN=${NFQ_RUN:-0}; NFQ_ALL=$(/etc/init.d/zapret info 2>/dev/null | grep -o 'instance[0-9]\+' | wc -l); NFQ_ALL=${NFQ_ALL:-0}; NFQ_STAT=""; if [ "$NFQ_ALL" -gt 0 ]; then
 [ "$NFQ_RUN" -eq "$NFQ_ALL" ] && NFQ_CLR="$GREEN" || NFQ_CLR="$RED"; NFQ_STAT="${NFQ_CLR}[${NFQ_RUN}/${NFQ_ALL}]${NC}"; fi; if [ -f /etc/init.d/zapret ]; then /etc/init.d/zapret status >/dev/null 2>&1 && ZAPRET_STATUS="${GREEN}запущен $NFQ_STAT${NC}" || ZAPRET_STATUS="${RED}остановлен${NC}"
 else ZAPRET_STATUS=""; fi; [ "$INSTALLED_VER2" = "$ZAPRET2_VERSION" ] && INST_COLOR=$GREEN || INST_COLOR=$RED; INSTALLED_DISPLAY=${INSTALLED_VER2:-"не найдена"}; }
@@ -546,13 +546,23 @@ echo -en "\n${YELLOW}Выберите зеркало: ${NC}"; read -r z; case "$
 # ==========================================
 # Подменю выбора версии Zapret/Zapret2
 version_submenu() { while true; do clear; echo -e "${MAGENTA}Выберите версию для установки${NC}\n"
-# Определяем статус Zapret
-get_versions
-if [ ! -f /etc/init.d/zapret ]; then Z1_TEXT="Установить"; Z1_FUNC="install_Zapret"; elif [ "$INSTALLED_VER" = "$ZAPRET_VERSION" ]; then Z1_TEXT="Удалить"; Z1_FUNC="uninstall_zapret"; else Z1_TEXT="Обновить"; Z1_FUNC="install_Zapret"; fi
-# Определяем статус Zapret2
-get_versions2
-if [ ! -f /etc/init.d/zapret ]; then Z2_TEXT="Установить"; Z2_FUNC="install_Zapret2"; elif [ "$INSTALLED_VER2" = "$ZAPRET2_VERSION" ]; then Z2_TEXT="Удалить"; Z2_FUNC="uninstall_zapret"; else Z2_TEXT="Обновить"; Z2_FUNC="install_Zapret2"; fi
-echo -e "${CYAN}1) ${GREEN}$Z1_TEXT${NC} Zapret v${ZAPRET_VERSION} (установлено: ${INST_COLOR}$INSTALLED_DISPLAY${NC})\n${CYAN}2) ${GREEN}$Z2_TEXT${NC} Zapret2 v${ZAPRET2_VERSION}\n${CYAN}Enter) ${GREEN}Выход в главное меню${NC}\n\n${YELLOW}Выберите пункт:${NC} " && read choice
+# Определяем статус Zapret и Zapret2
+LOCAL_ARCH=$(awk -F\' '/DISTRIB_ARCH/ {print $2}' /etc/openwrt_release); [ -z "$LOCAL_ARCH" ] && LOCAL_ARCH=$(opkg print-architecture | grep -v "noarch" | sort -k3 -n | tail -n1 | awk '{print $2}')
+if [ "$PKG_IS_APK" -eq 1 ]; then INST_VER=$(apk info -v | grep '^zapret-' | head -n1 | cut -d'-' -f2 | sed 's/-r[0-9]\+$//')
+else INST_VER=$(opkg list-installed zapret 2>/dev/null | awk '{sub(/-r[0-9]+$/, "", $3); print $3}'); fi
+[ -z "$INST_VER" ] && INST_VER="не найдена"
+# Определяем статус для Zapret v1
+if [ ! -f /etc/init.d/zapret ]; then Z1_TEXT="Установить"; Z1_FUNC="install_Zapret"
+elif [ "$INST_VER" = "$ZAPRET_VERSION" ]; then Z1_TEXT="Удалить"; Z1_FUNC="uninstall_zapret"
+else Z1_TEXT="Обновить"; Z1_FUNC="install_Zapret"; fi
+# Определяем статус для Zapret2 v2
+if [ ! -f /etc/init.d/zapret ]; then Z2_TEXT="Установить"; Z2_FUNC="install_Zapret2"
+elif [ "$INST_VER" = "$ZAPRET2_VERSION" ]; then Z2_TEXT="Удалить"; Z2_FUNC="uninstall_zapret"
+else Z2_TEXT="Обновить"; Z2_FUNC="install_Zapret2"; fi
+# Цвета для версий
+[ "$INST_VER" = "$ZAPRET_VERSION" ] && INST_COLOR1=$GREEN || INST_COLOR1=$RED
+[ "$INST_VER" = "$ZAPRET2_VERSION" ] && INST_COLOR2=$GREEN || INST_COLOR2=$RED
+echo -e "${CYAN}1) ${GREEN}$Z1_TEXT${NC} Zapret v${ZAPRET_VERSION} (установлено: ${INST_COLOR1}$INST_VER${NC})\n${CYAN}2) ${GREEN}$Z2_TEXT${NC} Zapret2 v${ZAPRET2_VERSION} (установлено: ${INST_COLOR2}$INST_VER${NC})\n${CYAN}Enter) ${GREEN}Выход в главное меню${NC}\n\n${YELLOW}Выберите пункт:${NC} " && read choice
 case "$choice" in 1) $Z1_FUNC;; 2) $Z2_FUNC;; *) return;; esac; done; }
 # ==========================================
 show_menu() { get_versions; get_doh_status; show_current_strategy; RKN_Check; mkdir -p "$TMP_SF"; CURR=$(curr_MIR); clear; echo -e "╔════════════════════════════════════╗\n║     ${BLUE}Zapret on remittor Manager${NC}     ║\n╚════════════════════════════════════╝\n                     ${DGRAY}by StressOzz v$ZAPRET_MANAGER_VERSION${NC}"
