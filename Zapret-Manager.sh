@@ -98,9 +98,9 @@ install_Zapret() {
     get_versions
     
     # Определение целевой версии и URL
-    if [ "$VER_TYPE" = "2" ]; then
-        TARGET_VERSION="$"
-        LATEST_URL="https://github.com/remittor/zapret-openwrt/releases/download/v${}/zapret2_v${ZAPRET2_VERSION}_${LOCAL_ARCH}.zip"
+   if [ "$VER_TYPE" = "2" ]; then
+    TARGET_VERSION="$ZAPRET2_VERSION"
+    LATEST_URL="https://github.com/remittor/zapret-openwrt/releases/download/v${ZAPRET2_VERSION}/zapret2_v${ZAPRET2_VERSION}_${LOCAL_ARCH}.zip"
     else
         TARGET_VERSION="$ZAPRET_VERSION"
         LATEST_URL="https://github.com/remittor/zapret-openwrt/releases/download/v${ZAPRET_VERSION}/zapret_v${ZAPRET_VERSION}_${LOCAL_ARCH}.zip"
