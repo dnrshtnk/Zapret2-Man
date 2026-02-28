@@ -96,30 +96,37 @@ ZAPRET_RESTART () {
 # ==========================================
 # Получение версии Zapret
 # ==========================================
-get_versions() { 
+get_versions() {
     LOCAL_ARCH=$(awk -F\' '/DISTRIB_ARCH/ {print $2}' /etc/openwrt_release); [ -z "$LOCAL_ARCH" ] && LOCAL_ARCH=$(opkg print-architecture | grep -v "noarch" | sort -k3 -n | tail -n1 | awk '{print $2}'); USED_ARCH="$LOCAL_ARCH"
-    LATEST_URL="https://github.com/remittor/zapret-openwrt/releases/download/v${ZAPRET_VERSION}/zapret_v${ZAPRET_VERSION}_${LOCAL_ARCH}.zip"; 
-    if [ "$PKG_IS_APK" -eq 1 ]; then 
+    LATEST_URL="https://github.com/remittor/zapret-openwrt/releases/download/v${ZAPRET_VERSION}/zapret_v${ZAPRET_VERSION}_${LOCAL_ARCH}.zip";
+    if [ "$PKG_IS_APK" -eq 1 ]; then
         INSTALLED_VER=$(apk info -v | grep '^zapret-' | grep -v '^zapret2-' | head -n1 | cut -d'-' -f2 | sed 's/-r[0-9]\+$//')
-        [ -z "$INSTALLED_VER" ] && INSTALLED_VER="не найдена"; 
-    else 
-        INSTALLED_VER=$(opkg list-installed zapret 2>/dev/null | grep -v '^zapret2' | awk '{sub(/-r[0-9]+$/, "", $3); print $3}'); 
-        [ -z "$INSTALLED_VER" ] && INSTALLED_VER="не найдена"; 
+        [ -z "$INSTALLED_VER" ] && INSTALLED_VER="не найдена";
+    else
+        INSTALLED_VER=$(opkg list-installed zapret 2>/dev/null | grep -v '^zapret2' | awk '{sub(/-r[0-9]+$/, "", $3); print $3}');
+        [ -z "$INSTALLED_VER" ] && INSTALLED_VER="не найдена";
     fi
-    NFQ_RUN=$(pgrep -f nfqws 2>/dev/null | wc -l); NFQ_RUN=${NFQ_RUN:-0}; 
-    NFQ_ALL=$(/etc/init.d/zapret info 2>/dev/null | grep -o 'instance[0-9]\+' | wc -l); NFQ_ALL=${NFQ_ALL:-0}; 
-    NFQ_STAT=""; 
+    # Используем универсальную проверку для zapret/zapret2
+    local init_script=$(get_init_script)
+    if [ "$init_script" = "zapret2" ]; then
+        NFQ_RUN=$(pgrep -f nfqws2 2>/dev/null | wc -l); NFQ_RUN=${NFQ_RUN:-0};
+        NFQ_ALL=$(/etc/init.d/zapret2 info 2>/dev/null | grep -o 'instance[0-9]\+' | wc -l); NFQ_ALL=${NFQ_ALL:-0};
+    else
+        NFQ_RUN=$(pgrep -f nfqws 2>/dev/null | wc -l); NFQ_RUN=${NFQ_RUN:-0};
+        NFQ_ALL=$(/etc/init.d/zapret info 2>/dev/null | grep -o 'instance[0-9]\+' | wc -l); NFQ_ALL=${NFQ_ALL:-0};
+    fi
+    NFQ_STAT="";
     if [ "$NFQ_ALL" -gt 0 ]; then
-        [ "$NFQ_RUN" -eq "$NFQ_ALL" ] && NFQ_CLR="$GREEN" || NFQ_CLR="$RED"; 
-        NFQ_STAT="${NFQ_CLR}[${NFQ_RUN}/${NFQ_ALL}]${NC}"; 
-    fi; 
-    if [ -f /etc/init.d/zapret ]; then 
-        /etc/init.d/zapret status >/dev/null 2>&1 && ZAPRET_STATUS="${GREEN}запущен $NFQ_STAT${NC}" || ZAPRET_STATUS="${RED}остановлен${NC}"
-    else 
-        ZAPRET_STATUS=""; 
-    fi; 
-    [ "$INSTALLED_VER" = "$ZAPRET_VERSION" ] && INST_COLOR=$GREEN || INST_COLOR=$RED; 
-    INSTALLED_DISPLAY=${INSTALLED_VER:-"не найдена"}; 
+        [ "$NFQ_RUN" -eq "$NFQ_ALL" ] && NFQ_CLR="$GREEN" || NFQ_CLR="$RED";
+        NFQ_STAT="${NFQ_CLR}[${NFQ_RUN}/${NFQ_ALL}]${NC}";
+    fi;
+    if [ -n "$init_script" ]; then
+        "/etc/init.d/$init_script" status >/dev/null 2>&1 && ZAPRET_STATUS="${GREEN}запущен $NFQ_STAT${NC}" || ZAPRET_STATUS="${RED}остановлен${NC}"
+    else
+        ZAPRET_STATUS="";
+    fi;
+    [ "$INSTALLED_VER" = "$ZAPRET_VERSION" ] && INST_COLOR=$GREEN || INST_COLOR=$RED;
+    INSTALLED_DISPLAY=${INSTALLED_VER:-"не найдена"};
 }
 
 # ==========================================
@@ -410,21 +417,21 @@ Discord_menu() {
     # Проверка для Zapret2
     if [ -f /etc/init.d/zapret2 ]; then ZAPRET2_INST="${GREEN}установлен${NC}"; else ZAPRET2_INST="${RED}не установлен${NC}"; fi
     
-    local NO_PAUSE=$1; 
-    while true; do 
+    local NO_PAUSE=$1;
+    while true; do
         [ "$NO_PAUSE" != "1" ] && clear && echo -e "${MAGENTA}Меню настройки Discord${NC}\n"
         echo -e "${YELLOW}Zapret:${NC}   $ZAPRET1_INST"
         echo -e "${YELLOW}Zapret2:${NC}  $ZAPRET2_INST\n"
         output_shown=false
-        
+
         # Определяем активный init-скрипт для проверок
         local init_script=$(get_init_script)
         local zapret_base=$(get_zapret_base)
-        
-        [ "$NO_PAUSE" != "1" ] && [ -f /etc/init.d/zapret ] && show_script_50 && [ -n "$name" ] && echo -e "${YELLOW}Установлен скрипт (Zapret):${NC} $name" && output_shown=true
+
+        [ "$NO_PAUSE" != "1" ] && [ -n "$init_script" ] && show_script_50 && [ -n "$name" ] && echo -e "${YELLOW}Установлен скрипт:${NC} $name" && output_shown=true
         [ "$NO_PAUSE" != "1" ] && grep -q "$Fin_IP_Dis" /etc/hosts && echo -e "${YELLOW}Финские IP для Discord: ${GREEN}включены${NC}" && output_shown=true
-        [ "$NO_PAUSE" != "1" ] && [ -f /etc/init.d/zapret ] && NUMDv=$(grep -o -E '^#[[:space:]]*Dv[0-9][0-9]*' "$CONF" | sed 's/[^0-9]//g' | head -n1) && [ -n "$NUMDv" ] && echo -e "${YELLOW}Стратегия для discord.media (Zapret): ${CYAN}Dv$NUMDv${NC}"  && output_shown=true
-        $output_shown && echo; 
+        [ "$NO_PAUSE" != "1" ] && [ -n "$init_script" ] && NUMDv=$(grep -o -E '^#[[:space:]]*Dv[0-9][0-9]*' "$CONF" | sed 's/[^0-9]//g' | head -n1) && [ -n "$NUMDv" ] && echo -e "${YELLOW}Стратегия для discord.media: ${CYAN}Dv$NUMDv${NC}"  && output_shown=true
+        $output_shown && echo;
         
         if [ "$NO_PAUSE" = "1" ]; then 
             SELECTED="50-stun4all"; 
